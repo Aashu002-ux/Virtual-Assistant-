@@ -1,0 +1,117 @@
+import speech_recognition as sr
+import pyttsx3
+import datetime
+import pywhatkit
+import wikipedia
+import pyjokes
+import requests
+import re
+
+
+listener = sr.Recognizer()
+alexa = pyttsx3.init()
+voices = alexa.getProperty('voices')
+alexa.setProperty('voice', voices[1].id)  
+
+
+API_KEY = "8027d0de43f998604a2b721f052f2e0a"
+
+def talk(text):
+    print("Alexa:", text)
+    alexa.say(text)
+    alexa.runAndWait()
+
+def take_command():
+    try:
+        with sr.Microphone() as source:
+            print('Listening...')
+            voice = listener.listen(source)
+            command = listener.recognize_google(voice)
+            print("You said:", command)
+            return command.lower()
+    except Exception as e:
+        print("Error:", e)
+        talk("Sorry, I didn't catch that.")
+        return ""
+
+def get_weather(city_name):
+    try:
+        print(f"Fetching weather for {city_name}...")
+        url = f"https://api.openweathermap.org/data/2.5/weather?q={city_name}&appid={API_KEY}&units=metric"
+        response = requests.get(url)
+        data = response.json()
+
+        if data["cod"] == 200:
+            temp = round(data["main"]["temp"])
+            description = data["weather"][0]["description"].capitalize()
+            weather_report = f"The current temperature in {city_name} is {temp} degrees Celsius with {description}."
+            print(weather_report)
+            talk(weather_report)
+        else:
+            talk(f"Sorry, I couldn't find weather information for {city_name}.")
+    except Exception as e:
+        print("Weather Error:", e)
+        talk("Something went wrong while fetching the weather.")
+
+def extract_city(command):
+    match = re.search(r'weather.*in ([a-zA-Z\s]+)', command)
+    if match:
+        return match.group(1).strip()
+    return None
+
+def run_alexa():
+    command = take_command()
+    if command == "":
+        return False 
+
+    print("Command received:", command)
+
+    if 'time' in command:
+        time = datetime.datetime.now().strftime('%I:%M %p')
+        talk('Current time is ' + time)
+
+    elif 'play' in command:
+        song = command.replace('play', '')
+        talk('Playing ' + song)
+        pywhatkit.playonyt(song)
+
+    elif 'tell me about' in command:
+        topic = command.replace('tell me about', '')
+        info = wikipedia.summary(topic, 2)
+        print(info)
+        talk(info)
+
+    elif 'joke' in command:
+        joke = pyjokes.get_joke()
+        print("Joke:", joke)
+        talk(joke)
+
+    elif 'date' in command:
+        talk('Sorry bro, I am in another relation.')
+
+    elif 'weather' in command:
+        city = extract_city(command)
+        if city:
+            get_weather(city)
+        else:
+            talk("Which city's weather do you want?")
+            city = take_command()
+            get_weather(city)
+
+    elif 'search' in command or 'google' in command:
+        query = command.replace('search', '').replace('google', '')
+        talk('Searching Google for ' + query)
+        pywhatkit.search(query)
+
+    elif 'exit' in command or 'stop' in command or 'tata' in command:
+        talk("Goodbye!")
+        return True  
+
+    else:
+        talk("Sorry, I didn't understand that.")
+    
+    return False  
+
+while True:
+    if run_alexa():
+        break
